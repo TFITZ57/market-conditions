@@ -30,10 +30,10 @@ DEFAULT_CONFIG = {
             "cache_ttl": 86400
         },
         "openai": {
-            "default_model": "gpt-4o"
+            "default_model": "gpt-o3-mini"
         },
         "anthropic": {
-            "default_model": "claude-3.7-sonnet"
+            "default_model": "claude-3.5-sonnet"
         }
     },
     "data": {
@@ -84,7 +84,7 @@ DEFAULT_CONFIG = {
             "New Listings",
             "Absorption Rate",
             "Pending Home Sales",
-            "List Price to Sales Price Ratio",
+            "LP/SP Ratio",
             "Home Price-to-Income Ratio",
             "Mortgage Rates",
             "Housing Affordability Index",

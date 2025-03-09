@@ -24,8 +24,11 @@ KEY_METRICS = [
     "Months of Supply",
     "Days on Market",
     "Absorption Rate", 
-    "List Price to Sales Price Ratio",
-    "Home Price-to-Income Ratio"
+    "LP/SP Ratio",
+    "Home Price-to-Income Ratio",
+    "Total Sales",
+    "Active Listings",
+    "New Listings"
 ]
 
 # Trend indicators (icons and colors)
@@ -40,8 +43,8 @@ TREND_INDICATORS = {
 def render_overview_page():
     """Render the overview dashboard page."""
     
-    st.title("Fairfield County Housing Market Overview")
-    st.write("At-a-glance summary of critical market metrics and trends")
+    st.title("Market Conditions Overview")
+    st.write("Statistics and trends for the real estate market")
     
     # Initialize components
     data_fetcher = DataFetcher()
@@ -143,228 +146,354 @@ def render_overview_page():
         st.error("No data available for the selected filters. Please try different criteria.")
         return
     
-    # 1. Market Health Score
-    with st.container():
-        st.subheader("Market Health Index")
-        
-        # Calculate market conditions index
-        market_index_df = metrics_calculator.calculate_market_conditions_index(metrics_data)
-        
-        if not market_index_df.empty and "market_conditions_index" in market_index_df.columns:
-            # Get the most recent value
-            current_index = market_index_df["market_conditions_index"].iloc[-1]
-            current_condition = market_index_df["market_condition"].iloc[-1]
+    # Create tabular layout similar to the image
+    st.subheader(f"The Overall Real Estate Market in {selected_location}")
+    
+    # Extract quarters from the data
+    quarters = []
+    for metric in metrics_data:
+        if not metrics_data[metric].empty:
+            for idx in metrics_data[metric].index:
+                if hasattr(idx, 'quarter') and hasattr(idx, 'year'):
+                    quarter_str = f"Q{idx.quarter} {idx.year}"
+                    if quarter_str not in quarters:
+                        quarters.append(quarter_str)
+                elif hasattr(idx, 'month') and hasattr(idx, 'year'):
+                    # Calculate quarter from month
+                    quarter = (idx.month - 1) // 3 + 1
+                    quarter_str = f"Q{quarter} {idx.year}"
+                    if quarter_str not in quarters:
+                        quarters.append(quarter_str)
+    
+    # Sort quarters chronologically
+    quarters.sort(key=lambda q: (int(q.split()[1]), int(q.split('Q')[1].split()[0])))
+    
+    # Use the most recent 4 quarters if available
+    if len(quarters) > 4:
+        quarters = quarters[-4:]  # Get the latest 4 quarters
+    
+    # Create table layout
+    # Structure is: [Metric, Quarter1, Quarter2, Quarter3, Quarter4, % Change Q1-Q2, % Change Q2-Q3, etc.]
+    
+    # Custom table with CSS
+    st.markdown("""
+    <style>
+    .metric-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .metric-table th, .metric-table td {
+        padding: 8px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+    .metric-table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+    .metric-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .metric-row:hover {
+        background-color: #e9f7fe;
+    }
+    .metric-name {
+        text-align: left;
+        font-weight: bold;
+    }
+    .positive-change {
+        color: green;
+    }
+    .negative-change {
+        color: red;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create table HTML
+    table_html = f"""
+    <table class="metric-table">
+        <tr>
+            <th>Metrics</th>
+    """
+    
+    # Add quarter columns
+    for quarter in quarters:
+        table_html += f"<th>{quarter}</th>"
+    
+    # Add percentage change columns
+    if len(quarters) >= 2:
+        for i in range(len(quarters)-1):
+            table_html += f"<th>% Change</th>"
+    
+    table_html += "</tr>"
+    
+    # Add metric rows
+    for metric in KEY_METRICS:
+        if metric not in metrics_data or metrics_data[metric].empty:
+            continue
             
-            # Previous value (one quarter ago)
-            if len(market_index_df) > 1:
-                prev_index = market_index_df["market_conditions_index"].iloc[-2]
-                index_change = current_index - prev_index
+        metric_df = metrics_data[metric]
+        
+        # Format the metric name to match the image
+        display_name = metric
+        if metric == "Median Sale Price":
+            display_name = "Median Price"
+        elif metric == "Average Sale Price":
+            display_name = "Average Price"
+        elif metric == "LP/SP Ratio":
+            display_name = "Avg SP/LP Ratio"
+        elif metric == "Days on Market":
+            display_name = "Avg DOM"
+        elif metric == "Home Price-to-Income Ratio":
+            display_name = "Price-to-Income Ratio"
+        
+        # Create row
+        table_html += f"""
+        <tr class="metric-row">
+            <td class="metric-name">{display_name}</td>
+        """
+        
+        # Values for each quarter
+        quarter_values = []
+        for quarter_str in quarters:
+            year = int(quarter_str.split()[1])
+            quarter = int(quarter_str.split('Q')[1].split()[0])
+            
+            # Find the value for this quarter/year
+            # First, check if we have quarter data
+            quarter_data = pd.DataFrame()
+            
+            if hasattr(metric_df.index, 'quarter') and hasattr(metric_df.index, 'year'):
+                quarter_data = metric_df[
+                    (metric_df.index.quarter == quarter) & 
+                    (metric_df.index.year == year)
+                ]
+            # If not, calculate from month data
+            elif hasattr(metric_df.index, 'month') and hasattr(metric_df.index, 'year'):
+                # Get months for this quarter
+                start_month = (quarter - 1) * 3 + 1
+                end_month = quarter * 3
+                quarter_data = metric_df[
+                    (metric_df.index.month >= start_month) & 
+                    (metric_df.index.month <= end_month) & 
+                    (metric_df.index.year == year)
+                ]
                 
-                # Determine if change is significant
-                significant_change = abs(index_change) > 5
-                
-                # Display the gauge chart
-                fig = go.Figure(go.Indicator(
-                    mode="gauge+number+delta",
-                    value=current_index,
-                    domain={"x": [0, 1], "y": [0, 1]},
-                    title={"text": "Market Health Score", "font": {"size": 24}},
-                    delta={"reference": prev_index, "valueformat": ".1f"},
-                    gauge={
-                        "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "darkblue"},
-                        "bar": {"color": "darkblue"},
-                        "bgcolor": "white",
-                        "borderwidth": 2,
-                        "bordercolor": "gray",
-                        "steps": [
-                            {"range": [0, 30], "color": "red"},
-                            {"range": [30, 50], "color": "orange"},
-                            {"range": [50, 70], "color": "yellow"},
-                            {"range": [70, 100], "color": "green"}
-                        ]
-                    }
-                ))
-                
-                fig.update_layout(
-                    height=250,
-                    margin=dict(l=20, r=20, t=50, b=20),
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Market condition interpretation
-                st.markdown(f"**Current Market Condition**: {current_condition}")
-                
-                if significant_change:
-                    if index_change > 0:
-                        st.markdown("🔍 **Analysis**: Market showing significant strengthening compared to previous quarter.")
-                    else:
-                        st.markdown("🔍 **Analysis**: Market showing significant weakening compared to previous quarter.")
+                # If we found multiple months, average them
+                if not quarter_data.empty and len(quarter_data) > 1:
+                    quarter_data = pd.DataFrame({
+                        "value": [quarter_data["value"].mean()]
+                    })
+            
+            if not quarter_data.empty and "value" in quarter_data.columns:
+                value = quarter_data["value"].iloc[0]
+                formatted_value = _format_metric_value(metric, value)
+                quarter_values.append(value)
+                table_html += f"<td>{formatted_value}</td>"
             else:
-                # Not enough data for comparison
-                st.metric("Market Health Score", f"{current_index:.1f}")
-                st.markdown(f"**Current Market Condition**: {current_condition}")
-        else:
-            st.warning("Insufficient data to calculate market health index. Please select a broader date range.")
-    
-    # 2. Key metrics summary with trend indicators
-    st.subheader("Key Market Indicators")
-    
-    # Create columns for metrics display
-    col1, col2, col3 = st.columns(3)
-    col_map = {0: col1, 1: col2, 2: col3}
-    
-    for i, metric in enumerate(KEY_METRICS):
-        if metric in metrics_data:
-            metric_df = metrics_data[metric]
-            
-            if not metric_df.empty and "value" in metric_df.columns:
-                # Get current value and QoQ change
-                if len(metric_df) > 1:
-                    current_val = metric_df["value"].iloc[-1]
-                    prev_val = metric_df["value"].iloc[-2]
-                    pct_change = ((current_val - prev_val) / prev_val) * 100 if prev_val != 0 else 0
+                quarter_values.append(None)
+                table_html += "<td>N/A</td>"
+        
+        # Calculate percentage changes between quarters
+        if len(quarters) >= 2:
+            for i in range(len(quarters)-1):
+                if quarter_values[i] is not None and quarter_values[i+1] is not None and quarter_values[i] != 0:
+                    pct_change = ((quarter_values[i+1] - quarter_values[i]) / quarter_values[i]) * 100
                     
-                    # Determine if trend is good or bad
-                    is_good_trend = _is_positive_trend(metric, pct_change)
+                    # Determine if change is positive or negative for this metric
+                    is_good_change = _is_positive_trend(metric, pct_change)
                     
-                    # Get appropriate trend indicator
-                    if pct_change > 1:  # More than 1% change up
-                        trend_icon = TREND_INDICATORS["up_good"] if is_good_trend else TREND_INDICATORS["up_bad"]
-                    elif pct_change < -1:  # More than 1% change down
-                        trend_icon = TREND_INDICATORS["down_good"] if is_good_trend else TREND_INDICATORS["down_bad"]
+                    # Format the percentage change
+                    change_str = f"{pct_change:.1f}%"
+                    if pct_change > 0:
+                        css_class = "positive-change" if is_good_change else "negative-change"
+                        table_html += f'<td class="{css_class}">+{change_str}</td>'
+                    elif pct_change < 0:
+                        css_class = "positive-change" if not is_good_change else "negative-change"
+                        table_html += f'<td class="{css_class}">{change_str}</td>'
                     else:
-                        trend_icon = TREND_INDICATORS["neutral"]
-                    
-                    # Format value based on metric type
-                    formatted_val = _format_metric_value(metric, current_val)
-                    
-                    # Display metric with delta and trend indicator
-                    with col_map[i % 3]:
-                        st.metric(
-                            label=metric,
-                            value=formatted_val,
-                            delta=f"{pct_change:.1f}%"
-                        )
-                        st.markdown(f"{trend_icon} QoQ Change", unsafe_allow_html=True)
+                        table_html += f"<td>0%</td>"
                 else:
-                    # Only one data point, no trend
-                    current_val = metric_df["value"].iloc[-1]
-                    formatted_val = _format_metric_value(metric, current_val)
-                    
-                    with col_map[i % 3]:
-                        st.metric(label=metric, value=formatted_val)
-            else:
-                with col_map[i % 3]:
-                    st.metric(label=metric, value="N/A")
-        else:
-            with col_map[i % 3]:
-                st.metric(label=metric, value="N/A")
+                    table_html += "<td>N/A</td>"
+        
+        table_html += "</tr>"
     
-    # 3. Historical trends chart
-    st.subheader("Historical Trends")
+    table_html += "</table>"
     
-    # Let user select metrics to display
-    selected_trend_metrics = st.multiselect(
-        "Select metrics to display",
-        options=KEY_METRICS,
-        default=["Median Sale Price", "Days on Market"],
-        key="overview_trend_metrics"
+    # Display the table
+    st.markdown(table_html, unsafe_allow_html=True)
+    
+    # Property Type Distribution chart (pie chart)
+    st.subheader(f"Allocation of Total Sales by Property Type in {selected_location}")
+    
+    # Get property type distribution from the data transformer
+    property_distribution = data_transformer.get_property_type_distribution(metrics_data, selected_location)
+    property_types = property_distribution["types"]
+    property_values = property_distribution["values"]
+    
+    # Create pie chart
+    fig = px.pie(
+        values=property_values,
+        names=property_types,
+        color_discrete_sequence=px.colors.qualitative.Safe,
+        hole=0.4
     )
     
-    if selected_trend_metrics:
-        # Create a comparative dataset with selected metrics
-        comparative_df = data_transformer.create_comparative_dataset(
-            metrics_data,
-            metrics=selected_trend_metrics
-        )
-        
-        if not comparative_df.empty:
-            # Normalize data for easier comparison
-            normalized_df = pd.DataFrame(index=comparative_df.index)
+    fig.update_layout(
+        height=400,
+        margin=dict(l=20, r=20, t=30, b=0),
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Create individual trend charts for key metrics
+    st.subheader("Trend Charts")
+    
+    # Create 2x2 grid for trend charts
+    col1, col2 = st.columns(2)
+    
+    # Function to create a trend chart for a specific metric
+    def create_trend_chart(metric, container):
+        if metric in metrics_data and not metrics_data[metric].empty:
+            df = metrics_data[metric].copy()
             
-            for col in comparative_df.columns:
-                if col in ["year", "quarter", "month", "quarter_year"]:
-                    continue
-                # Min-max normalization
-                series = comparative_df[col]
-                min_val = series.min()
-                max_val = series.max()
-                normalized_df[col] = (series - min_val) / (max_val - min_val) if max_val > min_val else series
-            
-            # Add date column for plotting
-            normalized_df["date"] = normalized_df.index
-            
-            # Melt dataframe for Plotly
-            melted_df = pd.melt(
-                normalized_df.reset_index(),
-                id_vars=["date"],
-                value_vars=[col for col in normalized_df.columns if col != "date"],
-                var_name="Metric",
-                value_name="Normalized Value"
-            )
+            # Create chart title based on metric
+            if metric == "Median Sale Price":
+                title = "Trend of Median Price"
+            elif metric == "Days on Market":
+                title = "Days on Market"
+            elif metric == "Active Listings":
+                title = "Active Listings"
+            elif metric == "New Listings":
+                title = "New Listings"
+            elif metric == "Total Sales":
+                title = "Total Sales"
+            else:
+                title = f"Trend of {metric}"
             
             # Create line chart
             fig = px.line(
-                melted_df,
-                x="date",
-                y="Normalized Value",
-                color="Metric",
-                title=f"Normalized Trends ({start_date.strftime('%b %Y')} to {end_date.strftime('%b %Y')})",
-                labels={"date": "Date", "Normalized Value": "Normalized Value (0-1)"}
+                df,
+                x=df.index,
+                y="value",
+                title=title,
+                labels={"value": metric, "index": "Date"}
             )
+            
+            # Set color based on metric type
+            if metric in ["Median Sale Price", "Average Sale Price"]:
+                line_color = "blue"
+            elif metric in ["Active Listings", "New Listings"]:
+                line_color = "orange" if metric == "New Listings" else "red"
+            elif metric == "Total Sales":
+                line_color = "green"
+            elif metric == "Days on Market":
+                line_color = "purple"
+            else:
+                line_color = "black"
+            
+            fig.update_traces(line_color=line_color)
+            
+            # Add markers for data points
+            fig.update_traces(mode="lines+markers", marker=dict(size=6))
+            
+            # Format y-axis based on metric type
+            if metric in ["Median Sale Price", "Average Sale Price"]:
+                fig.update_layout(yaxis_tickprefix="$", yaxis_tickformat=",")
+            
+            # Highlight quarterly data points
+            if hasattr(df.index, 'quarter') and hasattr(df.index, 'year'):
+                # Add quarterly annotations
+                for idx, row in df.iterrows():
+                    fig.add_annotation(
+                        x=idx,
+                        y=row['value'],
+                        text=f"Q{idx.quarter}",
+                        showarrow=False,
+                        yshift=10,
+                        font=dict(size=10)
+                    )
+            elif hasattr(df.index, 'month') and hasattr(df.index, 'year'):
+                # For monthly data, highlight the first month of each quarter
+                for idx, row in df.iterrows():
+                    if idx.month in [1, 4, 7, 10]:  # First month of each quarter
+                        quarter = (idx.month - 1) // 3 + 1
+                        fig.add_annotation(
+                            x=idx,
+                            y=row['value'],
+                            text=f"Q{quarter}",
+                            showarrow=False,
+                            yshift=10,
+                            font=dict(size=10)
+                        )
+            
+            # Add quarterly trendlines
+            if len(df) >= 4:
+                # Add a trendline for the latest 4 quarters
+                recent_data = df.iloc[-4:]
+                x_trend = np.array(range(len(recent_data)))
+                y_trend = recent_data['value'].values
+                
+                # Simple linear regression
+                z = np.polyfit(x_trend, y_trend, 1)
+                p = np.poly1d(z)
+                
+                # Add trendline as a separate trace
+                fig.add_trace(
+                    go.Scatter(
+                        x=recent_data.index,
+                        y=p(x_trend),
+                        mode='lines',
+                        line=dict(color='rgba(0,0,0,0.5)', width=2, dash='dash'),
+                        name='Quarterly Trend'
+                    )
+                )
             
             # Improve layout
             fig.update_layout(
-                height=400,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=40, r=40, t=60, b=40),
+                height=300,
+                margin=dict(l=40, r=20, t=40, b=40),
+                xaxis_title=None,
+                hovermode='x unified',
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            # Add min/max annotations for the latest 4 quarters
+            recent_data = df.iloc[-min(4, len(df)):]
+            if len(recent_data) > 1:
+                min_val = recent_data["value"].min()
+                max_val = recent_data["value"].max()
+                min_idx = recent_data["value"].idxmin()
+                max_idx = recent_data["value"].idxmax()
+                
+                fig.add_annotation(
+                    x=min_idx,
+                    y=min_val,
+                    text=f"Min: {_format_metric_value(metric, min_val)}",
+                    showarrow=True,
+                    arrowhead=1,
+                    yshift=-15
+                )
+                
+                fig.add_annotation(
+                    x=max_idx,
+                    y=max_val,
+                    text=f"Max: {_format_metric_value(metric, max_val)}",
+                    showarrow=True,
+                    arrowhead=1,
+                    yshift=15
+                )
             
-            # Add explanation of normalization
-            with st.expander("About Normalized Values"):
-                st.write("""
-                The chart shows normalized values (scaled between 0 and 1) to allow comparing metrics with 
-                different units and scales on the same graph. The lowest value for each metric becomes 0, 
-                and the highest becomes 1, with all other values scaled proportionally.
-                """)
+            container.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("No data available for the selected metrics.")
-    else:
-        st.info("Please select at least one metric to display historical trends.")
+            container.info(f"No data available for {metric}")
     
-    # 4. Alert indicators for significant market shifts
-    st.subheader("Market Alerts")
-    
-    alerts = _generate_market_alerts(metrics_data)
-    
-    if alerts:
-        for alert_type, alert_message in alerts:
-            if alert_type == "warning":
-                st.warning(alert_message)
-            elif alert_type == "info":
-                st.info(alert_message)
-            elif alert_type == "success":
-                st.success(alert_message)
-            else:
-                st.markdown(f"**{alert_message}**")
-    else:
-        st.info("No significant market shifts detected in the current time period.")
-    
-    # 5. Quick market summary
-    st.subheader("Market Summary")
-    
-    # Generate text summary based on available metrics
-    summary = _generate_market_summary(
-        metrics_data,
-        location=selected_location,
-        start_date=start_date,
-        end_date=end_date
-    )
-    
-    st.markdown(summary)
+    # Create trend charts for key metrics
+    create_trend_chart("Median Sale Price", col1)
+    create_trend_chart("Active Listings", col2)
+    create_trend_chart("Total Sales", col1)
+    create_trend_chart("Days on Market", col2)
     
     # Footer with data source information
     st.markdown("---")
@@ -389,7 +518,8 @@ def _is_positive_trend(metric: str, change: float) -> bool:
         "Average Sale Price",
         "Housing Affordability Index",
         "Absorption Rate",
-        "List Price to Sales Price Ratio"
+        "LP/SP Ratio",
+        "Total Sales"
     ]
     
     # For these metrics, a decrease is generally seen as positive
@@ -399,10 +529,19 @@ def _is_positive_trend(metric: str, change: float) -> bool:
         "Home Price-to-Income Ratio"
     ]
     
+    # For these metrics, the context determines whether an increase is positive
+    context_dependent = [
+        "Active Listings",
+        "New Listings"
+    ]
+    
     if metric in positive_when_increasing:
         return change > 0
     elif metric in positive_when_decreasing:
         return change < 0
+    elif metric in context_dependent:
+        # For context-dependent metrics, return neutral (neither positive nor negative)
+        return True if change > 0 else False  # Simply return the direction for UI display
     else:
         # Default to neutral
         return True
@@ -426,12 +565,14 @@ def _format_metric_value(metric: str, value: float) -> str:
         return f"{value:.0f} days"
     elif metric in ["Months of Supply"]:
         return f"{value:.1f} mo"
-    elif metric in ["List Price to Sales Price Ratio", "Absorption Rate"]:
+    elif metric in ["LP/SP Ratio", "Absorption Rate"]:
         return f"{value:.1f}%"
     elif metric in ["Home Price-to-Income Ratio"]:
         return f"{value:.2f}x"
     elif metric in ["Housing Affordability Index"]:
         return f"{value:.1f}"
+    elif metric in ["Total Sales", "Active Listings", "New Listings", "Inventory"]:
+        return f"{value:,.0f}"
     else:
         return f"{value:.2f}"
 
@@ -447,6 +588,30 @@ def _generate_market_alerts(metrics_data: Dict[str, pd.DataFrame]) -> List[Tuple
         List of (alert_type, message) tuples
     """
     alerts = []
+    
+    # Get current and previous quarter strings
+    current_quarter = None
+    previous_quarter = None
+    
+    if "Median Sale Price" in metrics_data and not metrics_data["Median Sale Price"].empty:
+        df = metrics_data["Median Sale Price"]
+        if hasattr(df.index, 'quarter') and hasattr(df.index, 'year') and len(df) > 1:
+            current_idx = df.index[-1]
+            prev_idx = df.index[-2]
+            current_quarter = f"Q{current_idx.quarter} {current_idx.year}"
+            previous_quarter = f"Q{prev_idx.quarter} {prev_idx.year}"
+        elif hasattr(df.index, 'month') and hasattr(df.index, 'year') and len(df) > 1:
+            current_idx = df.index[-1]
+            prev_idx = df.index[-2]
+            current_q = (current_idx.month - 1) // 3 + 1
+            prev_q = (prev_idx.month - 1) // 3 + 1
+            current_quarter = f"Q{current_q} {current_idx.year}"
+            previous_quarter = f"Q{prev_q} {prev_idx.year}"
+    
+    # Use generic "current quarter" and "previous quarter" if we couldn't determine specific quarters
+    if not current_quarter:
+        current_quarter = "current quarter"
+        previous_quarter = "previous quarter"
     
     # Check for significant changes in key metrics
     for metric in KEY_METRICS:
@@ -466,41 +631,75 @@ def _generate_market_alerts(metrics_data: Dict[str, pd.DataFrame]) -> List[Tuple
         # Set thresholds for alerts
         if metric == "Median Sale Price":
             if pct_change > 10:
-                alerts.append(("warning", f"🔔 Median sale price increased by {pct_change:.1f}% since last quarter, indicating a rapidly appreciating market."))
+                alerts.append(("warning", f"🔔 **Price Alert:** Median sale price increased by {pct_change:.1f}% from {previous_quarter} to {current_quarter}, indicating a rapidly appreciating market."))
             elif pct_change < -5:
-                alerts.append(("warning", f"🔔 Median sale price decreased by {abs(pct_change):.1f}% since last quarter, suggesting potential market correction."))
+                alerts.append(("warning", f"🔔 **Price Alert:** Median sale price decreased by {abs(pct_change):.1f}% from {previous_quarter} to {current_quarter}, suggesting potential market correction."))
         
         elif metric == "Days on Market":
             if pct_change < -20:
-                alerts.append(("warning", f"⏱️ Properties are selling {abs(pct_change):.1f}% faster than last quarter, indicating a hot seller's market."))
+                alerts.append(("warning", f"⏱️ **Market Speed Alert:** Properties are selling {abs(pct_change):.1f}% faster in {current_quarter} compared to {previous_quarter}, indicating a hot seller's market."))
             elif pct_change > 30:
-                alerts.append(("info", f"⏱️ Days on market increased by {pct_change:.1f}%, suggesting a shift towards a buyer's market."))
+                alerts.append(("info", f"⏱️ **Market Speed Alert:** Days on market increased by {pct_change:.1f}% from {previous_quarter} to {current_quarter}, suggesting a shift towards a buyer's market."))
         
         elif metric == "Months of Supply":
-            if current_val < 3 and pct_change < 0:
-                alerts.append(("warning", f"📊 Inventory remains very low at {current_val:.1f} months of supply, creating a strong seller's market."))
-            elif current_val > 6 and pct_change > 0:
-                alerts.append(("info", f"📊 Supply has increased to {current_val:.1f} months, shifting toward a buyer's market."))
+            if current_val < 3 and pct_change < -10:
+                alerts.append(("warning", f"📊 **Inventory Alert:** Supply decreased by {abs(pct_change):.1f}% to {current_val:.1f} months in {current_quarter}, strengthening the seller's market position."))
+            elif current_val > 6 and pct_change > 15:
+                alerts.append(("info", f"📊 **Inventory Alert:** Supply increased by {pct_change:.1f}% to {current_val:.1f} months in {current_quarter}, shifting toward a buyer's market."))
+        
+        elif metric == "Total Sales":
+            if pct_change > 20:
+                alerts.append(("success", f"💰 **Transaction Alert:** Sales volume jumped {pct_change:.1f}% in {current_quarter} compared to {previous_quarter}, indicating strong market activity."))
+            elif pct_change < -20:
+                alerts.append(("warning", f"💰 **Transaction Alert:** Sales volume dropped {abs(pct_change):.1f}% in {current_quarter} compared to {previous_quarter}, indicating slowing market activity."))
             
-        elif metric == "List Price to Sales Price Ratio":
+        elif metric == "LP/SP Ratio":
             if current_val > 100 and pct_change > 0:
-                alerts.append(("warning", f"💰 Properties are selling above asking price ({current_val:.1f}%), indicating strong competition among buyers."))
+                alerts.append(("warning", f"💲 **Pricing Power Alert:** Properties in {current_quarter} are selling at {current_val:.1f}% of asking price, indicating strong competition among buyers."))
             elif current_val < 95:
-                alerts.append(("info", f"💰 Properties are selling at {current_val:.1f}% of asking price, suggesting increased negotiating power for buyers."))
+                alerts.append(("info", f"💲 **Pricing Power Alert:** Properties in {current_quarter} are selling at only {current_val:.1f}% of asking price, suggesting increased negotiating power for buyers."))
+        
+        elif metric == "Active Listings":
+            if pct_change > 30:
+                alerts.append(("info", f"📋 **Inventory Alert:** Active listings increased by {pct_change:.1f}% in {current_quarter}, providing more options for buyers."))
+            elif pct_change < -30:
+                alerts.append(("warning", f"📋 **Inventory Alert:** Active listings decreased by {abs(pct_change):.1f}% in {current_quarter}, further limiting buyer options."))
                 
-    # Check for market balance indicators
-    if "Months of Supply" in metrics_data and "Days on Market" in metrics_data:
+    # Check for market balance indicators - compare metrics to identify market direction
+    if "Months of Supply" in metrics_data and "Days on Market" in metrics_data and "Total Sales" in metrics_data:
         supply_df = metrics_data["Months of Supply"]
         dom_df = metrics_data["Days on Market"]
+        sales_df = metrics_data["Total Sales"]
         
-        if not supply_df.empty and not dom_df.empty and "value" in supply_df.columns and "value" in dom_df.columns:
+        if (not supply_df.empty and not dom_df.empty and not sales_df.empty and 
+            "value" in supply_df.columns and "value" in dom_df.columns and "value" in sales_df.columns):
+            
             current_supply = supply_df["value"].iloc[-1]
             current_dom = dom_df["value"].iloc[-1]
+            current_sales = sales_df["value"].iloc[-1]
             
+            # Check if we have previous period data
+            if len(supply_df) > 1 and len(dom_df) > 1 and len(sales_df) > 1:
+                prev_supply = supply_df["value"].iloc[-2]
+                prev_dom = dom_df["value"].iloc[-2]
+                prev_sales = sales_df["value"].iloc[-2]
+                
+                # Calculate change percentages
+                supply_change = ((current_supply - prev_supply) / prev_supply) * 100 if prev_supply != 0 else 0
+                dom_change = ((current_dom - prev_dom) / prev_dom) * 100 if prev_dom != 0 else 0
+                sales_change = ((current_sales - prev_sales) / prev_sales) * 100 if prev_sales != 0 else 0
+                
+                # Identify market direction based on combined metrics
+                if supply_change < -10 and dom_change < -10 and sales_change > 10:
+                    alerts.append(("warning", f"🔥 **Market Direction Alert:** Multiple indicators show strengthening seller's market in {current_quarter} - decreasing supply, faster sales, and increasing transaction volume."))
+                elif supply_change > 15 and dom_change > 15 and sales_change < -10:
+                    alerts.append(("info", f"❄️ **Market Direction Alert:** Multiple indicators show strengthening buyer's market in {current_quarter} - increasing supply, slower sales, and decreasing transaction volume."))
+            
+            # Current market state based on absolute values
             if current_supply < 3 and current_dom < 30:
-                alerts.append(("warning", "🔥 Strong seller's market with low inventory and quick sales."))
+                alerts.append(("warning", f"🏡 **Market State Alert:** Strong seller's market in {current_quarter} with low inventory ({current_supply:.1f} months) and quick sales ({current_dom:.0f} days)."))
             elif current_supply > 6 and current_dom > 60:
-                alerts.append(("info", "❄️ Market has shifted in favor of buyers with high inventory and longer selling times."))
+                alerts.append(("info", f"🏡 **Market State Alert:** Buyer's market conditions in {current_quarter} with high inventory ({current_supply:.1f} months) and longer selling times ({current_dom:.0f} days)."))
     
     return alerts
 
@@ -527,6 +726,43 @@ def _generate_market_summary(metrics_data: Dict[str, pd.DataFrame],
     dom = None
     ratio = None
     
+    # Get latest quarter data
+    current_quarter = None
+    previous_quarter = None
+    
+    # Determine the current and previous quarters
+    if "Median Sale Price" in metrics_data and not metrics_data["Median Sale Price"].empty:
+        df = metrics_data["Median Sale Price"]
+        if hasattr(df.index, 'quarter') and hasattr(df.index, 'year'):
+            # If data already has quarter information
+            current_idx = df.index[-1]
+            current_quarter = f"Q{current_idx.quarter} {current_idx.year}"
+            
+            if len(df) > 1:
+                prev_idx = df.index[-2]
+                previous_quarter = f"Q{prev_idx.quarter} {prev_idx.year}"
+        elif hasattr(df.index, 'month') and hasattr(df.index, 'year'):
+            # Calculate quarter from month for the latest data point
+            current_idx = df.index[-1]
+            current_q = (current_idx.month - 1) // 3 + 1
+            current_quarter = f"Q{current_q} {current_idx.year}"
+            
+            if len(df) > 1:
+                prev_idx = df.index[-2]
+                prev_q = (prev_idx.month - 1) // 3 + 1
+                previous_quarter = f"Q{prev_q} {prev_idx.year}"
+    
+    # If we couldn't determine quarters from data, use the date range
+    if not current_quarter:
+        current_q = (end_date.month - 1) // 3 + 1
+        current_quarter = f"Q{current_q} {end_date.year}"
+        
+        # Calculate previous quarter
+        prev_date = end_date - timedelta(days=90)
+        prev_q = (prev_date.month - 1) // 3 + 1
+        previous_quarter = f"Q{prev_q} {prev_date.year}"
+    
+    # Get the latest values for key metrics
     if "Median Sale Price" in metrics_data and not metrics_data["Median Sale Price"].empty:
         median_price = metrics_data["Median Sale Price"]["value"].iloc[-1]
         
@@ -536,29 +772,33 @@ def _generate_market_summary(metrics_data: Dict[str, pd.DataFrame],
     if "Days on Market" in metrics_data and not metrics_data["Days on Market"].empty:
         dom = metrics_data["Days on Market"]["value"].iloc[-1]
         
-    if "List Price to Sales Price Ratio" in metrics_data and not metrics_data["List Price to Sales Price Ratio"].empty:
-        ratio = metrics_data["List Price to Sales Price Ratio"]["value"].iloc[-1]
+    if "LP/SP Ratio" in metrics_data and not metrics_data["LP/SP Ratio"].empty:
+        ratio = metrics_data["LP/SP Ratio"]["value"].iloc[-1]
     
     # Generate market summary based on available data
     summary_parts = []
     
-    # Location and time period
-    summary_parts.append(f"The housing market in **{location}** from {start_date.strftime('%b %Y')} to {end_date.strftime('%b %Y')} ")
+    # Location and time period with focus on current quarter
+    summary_parts.append(f"## Market Summary for {location}: {current_quarter}\n\n")
+    
+    # Add quarter-over-quarter comparison if available
+    if previous_quarter:
+        summary_parts.append(f"This analysis compares {current_quarter} with {previous_quarter} to identify key market trends.\n\n")
     
     # Market balance assessment
     if months_supply is not None:
         if months_supply < 3:
-            summary_parts.append(f"shows a **strong seller's market** with only {months_supply:.1f} months of supply. ")
+            summary_parts.append(f"### Market Balance\nThe market in {current_quarter} shows a **strong seller's market** with only {months_supply:.1f} months of supply. ")
         elif months_supply < 6:
-            summary_parts.append(f"is relatively balanced at {months_supply:.1f} months of supply, with a slight advantage to sellers. ")
+            summary_parts.append(f"### Market Balance\nThe market in {current_quarter} is relatively balanced at {months_supply:.1f} months of supply, with a slight advantage to sellers. ")
         else:
-            summary_parts.append(f"indicates a **buyer's market** with {months_supply:.1f} months of supply. ")
+            summary_parts.append(f"### Market Balance\nThe market in {current_quarter} indicates a **buyer's market** with {months_supply:.1f} months of supply. ")
     
     # Price information
     if median_price is not None:
-        summary_parts.append(f"The median sale price is **${median_price:,.0f}**")
+        summary_parts.append(f"\n\n### Pricing Trends\nThe median sale price for {current_quarter} is **${median_price:,.0f}**")
         
-        # Add price trend if we have enough data
+        # Add quarter-over-quarter price trend if we have enough data
         if "Median Sale Price" in metrics_data and len(metrics_data["Median Sale Price"]) > 1:
             price_df = metrics_data["Median Sale Price"]
             prev_price = price_df["value"].iloc[-2]
@@ -566,19 +806,19 @@ def _generate_market_summary(metrics_data: Dict[str, pd.DataFrame],
             
             if abs(pct_change) > 1:  # Only mention if change is significant
                 if pct_change > 0:
-                    summary_parts.append(f", which has **increased {pct_change:.1f}%** since the previous quarter. ")
+                    summary_parts.append(f", which has **increased {pct_change:.1f}%** since {previous_quarter}. ")
                 else:
-                    summary_parts.append(f", which has **decreased {abs(pct_change):.1f}%** since the previous quarter. ")
+                    summary_parts.append(f", which has **decreased {abs(pct_change):.1f}%** since {previous_quarter}. ")
             else:
-                summary_parts.append(", which has remained stable since the previous quarter. ")
+                summary_parts.append(f", which has remained stable since {previous_quarter}. ")
         else:
             summary_parts.append(". ")
     
     # Days on Market
     if dom is not None:
-        summary_parts.append(f"Properties are selling in an average of **{dom:.0f} days**")
+        summary_parts.append(f"\n\n### Market Activity\nProperties in {current_quarter} are selling in an average of **{dom:.0f} days**")
         
-        # Add DOM trend if we have enough data
+        # Add quarter-over-quarter DOM trend if we have enough data
         if "Days on Market" in metrics_data and len(metrics_data["Days on Market"]) > 1:
             dom_df = metrics_data["Days on Market"]
             prev_dom = dom_df["value"].iloc[-2]
@@ -586,33 +826,52 @@ def _generate_market_summary(metrics_data: Dict[str, pd.DataFrame],
             
             if abs(pct_change) > 5:  # Only mention if change is significant
                 if pct_change > 0:
-                    summary_parts.append(f", a **{pct_change:.1f}% increase** from the previous quarter. ")
+                    summary_parts.append(f", a **{pct_change:.1f}% increase** from {previous_quarter}. ")
                 else:
-                    summary_parts.append(f", a **{abs(pct_change):.1f}% decrease** from the previous quarter. ")
+                    summary_parts.append(f", a **{abs(pct_change):.1f}% decrease** from {previous_quarter}. ")
             else:
-                summary_parts.append(", similar to the previous quarter. ")
+                summary_parts.append(f", similar to {previous_quarter}. ")
         else:
             summary_parts.append(". ")
     
     # List to Sale Price Ratio
     if ratio is not None:
+        summary_parts.append("\n\n### Buyer/Seller Dynamics\n")
         if ratio > 100:
-            summary_parts.append(f"Buyers are paying **{ratio:.1f}%** of asking price on average, indicating significant competition. ")
+            summary_parts.append(f"Buyers in {current_quarter} are paying **{ratio:.1f}%** of asking price on average, indicating significant competition. ")
         elif ratio > 98:
-            summary_parts.append(f"Sellers are receiving close to asking price at **{ratio:.1f}%** on average. ")
+            summary_parts.append(f"Sellers in {current_quarter} are receiving close to asking price at **{ratio:.1f}%** on average. ")
         else:
-            summary_parts.append(f"Buyers are negotiating prices down to **{ratio:.1f}%** of asking price on average. ")
+            summary_parts.append(f"Buyers in {current_quarter} are negotiating prices down to **{ratio:.1f}%** of asking price on average. ")
+    
+    # Add quarterly sales volume if available
+    if "Total Sales" in metrics_data and not metrics_data["Total Sales"].empty:
+        sales = metrics_data["Total Sales"]["value"].iloc[-1]
+        summary_parts.append(f"\n\n### Transaction Volume\nTotal sales in {current_quarter} reached **{sales:,.0f}** transactions")
+        
+        if len(metrics_data["Total Sales"]) > 1:
+            prev_sales = metrics_data["Total Sales"]["value"].iloc[-2]
+            pct_change = ((sales - prev_sales) / prev_sales) * 100 if prev_sales != 0 else 0
+            
+            if abs(pct_change) > 5:
+                if pct_change > 0:
+                    summary_parts.append(f", a **{pct_change:.1f}% increase** from {previous_quarter}.")
+                else:
+                    summary_parts.append(f", a **{abs(pct_change):.1f}% decrease** from {previous_quarter}.")
+            else:
+                summary_parts.append(f", similar to {previous_quarter}.")
     
     # Combine all parts into a single summary
     summary = "".join(summary_parts)
     
     # Add closing recommendation based on market conditions
     if months_supply is not None and dom is not None:
+        summary += "\n\n### Market Outlook\n"
         if months_supply < 3 and dom < 30:
-            summary += "\n\n**Recommendation**: Buyers should be prepared to act quickly and potentially offer above asking price. Sellers are in a strong position to maximize returns."
+            summary += f"For {current_quarter}, buyers should be prepared to act quickly and potentially offer above asking price. Sellers are in a strong position to maximize returns."
         elif months_supply > 6 and dom > 60:
-            summary += "\n\n**Recommendation**: Buyers have negotiating leverage in the current market. Sellers should consider pricing competitively and expect longer selling periods."
+            summary += f"For {current_quarter}, buyers have negotiating leverage. Sellers should consider pricing competitively and expect longer selling periods."
         else:
-            summary += "\n\n**Recommendation**: The market shows a reasonable balance between buyers and sellers, with opportunities for both sides when positioned correctly."
+            summary += f"For {current_quarter}, the market shows a reasonable balance between buyers and sellers, with opportunities for both sides when positioned correctly."
     
     return summary 

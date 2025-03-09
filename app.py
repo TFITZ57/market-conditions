@@ -13,10 +13,12 @@ from src.utils.config import load_config
 from src.utils.logger import setup_logger
 from src.data_collection.data_fetcher import DataFetcher
 from src.data_processing.metrics_calculator import MetricsCalculator
+from src.ui.pages.overview import render_overview_page
 from src.ui.pages.housing_metrics import show_housing_metrics_page
 from src.ui.pages.economic import show_economic_page
 from src.ui.pages.comparison import show_comparison_page
 from src.ui.pages.forecast import show_forecast_page
+from src.ui.pages.analysis import render_analysis_page
 from src.ui.pages.reports import show_reports_page
 from src.utils.security import get_api_key
 
@@ -142,28 +144,20 @@ def main():
                 else:
                     st.error("Failed to generate synthetic data. Please check logs for details.")
     
-    # Set up application header
-    with st.container():
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            # Try to display logo if available
-            logo_path = os.path.join("assets", "fairfield_county_logo.png")
-            if os.path.exists(logo_path):
-                st.image(logo_path, width=100)
-            else:
-                st.title("FC")
-        
-        with col2:
-            st.title("Fairfield County Housing Market Analysis")
-            
-            # Display data source indicator
-            if st.session_state.get('synthetic_data_generated', False):
-                st.caption("⚠️ Using synthetic data for demonstration. API keys are required for real data.")
-    
-    # Create sidebar with filters
+    # Create sidebar with logo at the top and filters
     with st.sidebar:
-        st.header("Data Filters")
+        # Add logo to the top of sidebar
+        logo_path = os.path.join("assets", "1cypresstest1_copy-removebg-preview_1_Traced3.png")
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=150)
+        else:
+            st.title("CT Market Conditions")
+            
+        # Show data source indicator
+        if st.session_state.get('synthetic_data_generated', False):
+            st.caption("⚠️ Using synthetic data for demonstration. API keys are required for real data.")
+            
+        st.header("Params")
         
         # Date range selection
         st.subheader("Time Period")
@@ -299,11 +293,13 @@ def main():
             options=[
                 "Analytical",
                 "Informative",
+                "Observational",
                 "Casual",
                 "Skeptical",
-                "Academic"
+                "Academic", 
+                "Donald Trump"
             ],
-            index=1  # Default to Informative
+            index=1  # Default to Analytical
         )
         
         # Report length selection
@@ -334,38 +330,76 @@ def main():
             }
         }
     
-    # Create tabs for main content pages
+    # Create horizontal line for visual separation before tabs
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Create tabs for main content pages with a more prominent styling
+    st.markdown("""
+    <style>
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0px;
+        width: 100%;
+        background-color: #2d3741;
+        padding: 0px 0px;
+        border-radius: 4px;
+        margin-bottom: 16px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 0px;
+        padding: 10px 20px;
+        font-weight: 500;
+        font-size: 14px;
+        color: #e6e6e6;
+        border-bottom: 2px solid transparent;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: transparent;
+        color: white;
+        border-bottom: 2px solid #4682b4;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: rgba(70, 130, 180, 0.1);
+        color: white;
+    }
+    </style>""", unsafe_allow_html=True)
+    
     tabs = st.tabs([
-        "Housing Metrics", 
-        "Economic Indicators", 
-        "Comparison", 
-        "Forecast", 
+        "Overview",
+        "Housing", 
+        "Economy", 
+        "Compare", 
+        "Forecast",
+        "Chart Metrics",
         "Reports"
     ])
     
-    # Show Housing Metrics page
+    # Show Overview Dashboard page
     with tabs[0]:
+        render_overview_page()
+    
+    # Show Housing Metrics page
+    with tabs[1]:
         show_housing_metrics_page(filters)
     
     # Show Economic Indicators page
-    with tabs[1]:
+    with tabs[2]:
         show_economic_page(filters)
     
     # Show Comparison page
-    with tabs[2]:
-        show_comparison_page(filters)
-    
-    # Show Forecast page
     with tabs[3]:
-        show_forecast_page(filters)
-    
-    # Show Reports page
+        show_comparison_page(filters)
+        
+    # Show Forecast page
     with tabs[4]:
+        show_forecast_page(filters)
+        
+    # Show Data Analysis page
+    with tabs[5]:
+        render_analysis_page()
+        
+    # Show Reports page
+    with tabs[6]:
         show_reports_page(filters, report_settings)
-    
-    # Add footer
-    st.markdown("---")
-    st.caption("© 2025 Fairfield County Housing Market Analysis | Data sources: FRED, BLS, ATTOM")
 
 if __name__ == "__main__":
     main()

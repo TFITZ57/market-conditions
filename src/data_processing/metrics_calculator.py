@@ -223,7 +223,7 @@ class MetricsCalculator:
             "Months of Supply",
             "Days on Market",
             "Median Sale Price",
-            "List Price to Sales Price Ratio",
+            "LP/SP Ratio",
             "Absorption Rate"
         ]
         
@@ -263,7 +263,7 @@ class MetricsCalculator:
             series = values_df[metric]
             
             # Determine direction: higher is better (positive) or worse (negative)
-            positive_direction = metric in ["Absorption Rate", "List Price to Sales Price Ratio", "Median Sale Price"]
+            positive_direction = metric in ["Absorption Rate", "LP/SP Ratio", "Median Sale Price"]
             
             # Normalize
             min_val = series.min()
@@ -356,7 +356,7 @@ class MetricsCalculator:
         Higher values indicate more favorable conditions for buyers.
         
         Args:
-            list_price_ratio_df: DataFrame with list price to sales price ratio
+            list_price_ratio_df: DataFrame with LP/SP Ratio
             seller_concessions_df: DataFrame with seller concessions data
             days_on_market_df: DataFrame with days on market data
                          

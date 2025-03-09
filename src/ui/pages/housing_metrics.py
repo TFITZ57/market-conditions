@@ -402,7 +402,7 @@ def generate_synthetic_housing_data(metrics, quarters, towns):
         "New Listings": {"base": 800, "trend": -5, "volatility": 80, "seasonality": [-0.2, 0.4, 0.1, -0.3]},
         "Absorption Rate": {"base": 30, "trend": 0.2, "volatility": 3, "seasonality": [-0.1, 0.2, 0.1, -0.2]},
         "Pending Home Sales": {"base": 700, "trend": -8, "volatility": 70, "seasonality": [-0.1, 0.3, 0.1, -0.3]},
-        "List Price to Sales Price Ratio": {"base": 98, "trend": -0.1, "volatility": 1, "seasonality": [0.01, 0.02, -0.01, -0.02]},
+        "LP/SP Ratio": {"base": 98, "trend": -0.1, "volatility": 1, "seasonality": [0.01, 0.02, -0.01, -0.02]},
         "Home Price-to-Income Ratio": {"base": 5.8, "trend": 0.05, "volatility": 0.2, "seasonality": [0.01, 0.02, -0.01, -0.02]},
         "Mortgage Rates": {"base": 6.5, "trend": 0.05, "volatility": 0.2, "seasonality": [-0.05, 0.1, 0.05, -0.1]},
         "Housing Affordability Index": {"base": 95, "trend": -0.3, "volatility": 3, "seasonality": [0.02, -0.02, -0.01, 0.01]},

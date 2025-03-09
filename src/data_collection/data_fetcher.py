@@ -65,14 +65,16 @@ class DataFetcher:
             "Pending Home Sales": "fred",
             "Median Sale Price": "attom", 
             "Average Sale Price": "attom",
-            "List Price to Sales Price Ratio": "attom",
-            "Home Price-to-Income Ratio": "calculated",  # Requires data from multiple sources
+            "LP/SP Ratio": "attom",
+            "HPIncome Ratio": "calculated",  # Requires data from multiple sources
             "Mortgage Rates": "fred",
             "Housing Affordability Index": "fred",
             "Local Job Growth": "bls",
             "Employment Trends": "bls",
             "Vacancy Rates": "fred",
-            "Seller Concessions": "attom"
+            "Seller Concessions": "attom",
+            "Total Sales": "attom",
+            "Active Listings": "attom"
         }
     
     def load_synthetic_data(self, data_type: str, identifier: str = None) -> Dict[str, pd.DataFrame]:
@@ -537,7 +539,9 @@ class DataFetcher:
             "Median Sale Price": "median_sale_price",
             "Average Sale Price": "average_sale_price",
             "List Price to Sales Price Ratio": "list_price_to_sale_price_ratio",
-            "Seller Concessions": "avg_seller_concession"
+            "Seller Concessions": "avg_seller_concession",
+            "Total Sales": "sales_count",
+            "Active Listings": "listing_inventory"
         }
         
         for metric, column in attom_columns.items():
@@ -671,7 +675,9 @@ class DataFetcher:
             "Median Sale Price": "price",
             "Average Sale Price": "price",
             "List Price to Sales Price Ratio": "list_to_sale",
-            "Seller Concessions": "price"
+            "Seller Concessions": "price",
+            "Total Sales": "sales_volume",
+            "Active Listings": "inventory"
         }
         
         return attom_metric_types.get(metric_name, "")

@@ -491,3 +491,29 @@ class DataTransformer:
         except Exception as e:
             logger.error(f"Error applying transformations: {e}")
             return data
+
+    def get_property_type_distribution(self, metrics_data, location=None):
+        """
+        Generate property type distribution data for pie charts.
+        
+        Args:
+            metrics_data: Dictionary of market metrics data
+            location: Selected location
+            
+        Returns:
+            Dictionary with property types and their percentages
+        """
+        # In a real implementation, this would use actual data from the metrics_data
+        # For now, return sample data in the format expected by the pie chart
+        property_types = {
+            "Single-Family Homes": 62,
+            "Condos/Apartments": 23,
+            "Multi-Family": 8,
+            "Townhouses": 7
+        }
+        
+        # Return property types and their percentages
+        return {
+            "types": list(property_types.keys()),
+            "values": list(property_types.values())
+        }

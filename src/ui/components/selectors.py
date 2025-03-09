@@ -52,7 +52,7 @@ class MetricSelector:
             "Pending Home Sales", 
             "Median Sale Price",
             "Average Sale Price", 
-            "List Price to Sales Price Ratio", 
+            "LP/SP Ratio",
             "Home Price-to-Income Ratio",
             "Mortgage Rates", 
             "Housing Affordability Index", 
@@ -69,7 +69,7 @@ class MetricSelector:
             "Median Sale Price",
             "Months of Supply",
             "Days on Market",
-            "List Price to Sales Price Ratio",
+            "LP/SP Ratio",
             "Home Price-to-Income Ratio"
         ]
         
@@ -88,7 +88,7 @@ class MetricSelector:
                 "Price": [
                     "Median Sale Price",
                     "Average Sale Price",
-                    "List Price to Sales Price Ratio",
+                    "LP/SP Ratio",
                     "Home Price-to-Income Ratio",
                     "Seller Concessions"
                 ],

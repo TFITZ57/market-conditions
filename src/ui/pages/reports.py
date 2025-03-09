@@ -12,10 +12,12 @@ from datetime import datetime
 import os
 import json
 from typing import Dict, Any
+import tempfile
+import base64
 
 from src.utils.config import load_config
 from src.ai_analysis.report_generator import generate_report, generate_comparative_report
-from src.ai_analysis.report_formatter import format_report
+from src.ai_analysis.report_formatter import format_report, export_report
 from src.visualization.charts import create_metric_chart
 from src.visualization.exporters import export_visualizations
 from src.ui.components.report_viewer import (
@@ -37,16 +39,19 @@ def show_reports_page(filters: Dict[str, Any], report_settings: Dict[str, Any]):
     """
     st.header("Generated Reports")
     
-    # Placeholder for actual implementation
-    st.info("Report generation and management tools will be displayed here.")
+    # Load config
+    config = load_config()
     
-    # Display the filters being used (for debugging)
-    with st.expander("Current Filters"):
-        st.write(filters)
-        
-    # Display report settings
-    with st.expander("Report Settings"):
-        st.write(report_settings)
+    # Create tabs for report generation and saved reports
+    report_tabs = st.tabs(["Generate New Report", "Saved Reports"])
+    
+    # Generate new report tab
+    with report_tabs[0]:
+        show_report_generation(filters, report_settings, config)
+    
+    # Saved reports tab
+    with report_tabs[1]:
+        show_saved_reports()
 
 def show_report_generation(filters, report_settings, config):
     """
@@ -164,6 +169,53 @@ def show_report_generation(filters, report_settings, config):
                     st.session_state['report_generated'] = False
                     st.session_state['current_report'] = None
 
+            # Add export options
+            st.subheader("Export Options")
+            
+            export_col1, export_col2 = st.columns(2)
+            
+            with export_col1:
+                if st.button("Export as DOCX"):
+                    with st.spinner("Preparing DOCX file..."):
+                        # Format report as DOCX
+                        docx_data = format_report(report, format_type='docx')
+                        
+                        # Save to a temporary file
+                        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
+                            docx_data.save(tmp.name)
+                            tmp_path = tmp.name
+                        
+                        # Read the saved file
+                        with open(tmp_path, 'rb') as file:
+                            docx_bytes = file.read()
+                        
+                        # Create download link
+                        b64_docx = base64.b64encode(docx_bytes).decode()
+                        download_filename = f"housing_market_report_{datetime.now().strftime('%Y%m%d')}.docx"
+                        href = f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64_docx}" download="{download_filename}">Click here to download DOCX</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                        
+                        # Cleanup
+                        os.unlink(tmp_path)
+            
+            with export_col2:
+                if st.button("Export as PDF"):
+                    with st.spinner("Preparing PDF file..."):
+                        # Format report as PDF
+                        pdf_bytes = format_report(report, format_type='pdf')
+                        
+                        # Create download link
+                        b64_pdf = base64.b64encode(pdf_bytes).decode()
+                        download_filename = f"housing_market_report_{datetime.now().strftime('%Y%m%d')}.pdf"
+                        href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{download_filename}">Click here to download PDF</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+            
+            # Save report option
+            if st.button("Save Report"):
+                report_name = f"{report_settings['report']['type']} Report - {datetime.now().strftime('%Y-%m-%d')}"
+                save_report_to_repository(report, report_name)
+                st.success(f"Report '{report_name}' saved successfully!")
+
 def show_saved_reports():
     """Display the saved reports section."""
     st.subheader("Saved Reports")
@@ -239,7 +291,7 @@ def generate_synthetic_data(metrics, quarters, towns):
         "New Listings": {"base": 800, "trend": -5, "volatility": 80, "seasonality": [-0.2, 0.4, 0.1, -0.3]},
         "Absorption Rate": {"base": 30, "trend": 0.2, "volatility": 3, "seasonality": [-0.1, 0.2, 0.1, -0.2]},
         "Pending Home Sales": {"base": 700, "trend": -8, "volatility": 70, "seasonality": [-0.1, 0.3, 0.1, -0.3]},
-        "List Price to Sales Price Ratio": {"base": 98, "trend": -0.1, "volatility": 1, "seasonality": [0.01, 0.02, -0.01, -0.02]},
+        "LP/SP Ratio": {"base": 98, "trend": -0.1, "volatility": 1, "seasonality": [0.01, 0.02, -0.01, -0.02]},
         "Home Price-to-Income Ratio": {"base": 5.8, "trend": 0.05, "volatility": 0.2, "seasonality": [0.01, 0.02, -0.01, -0.02]},
         "Mortgage Rates": {"base": 6.5, "trend": 0.05, "volatility": 0.2, "seasonality": [-0.05, 0.1, 0.05, -0.1]},
         "Housing Affordability Index": {"base": 95, "trend": -0.3, "volatility": 3, "seasonality": [0.02, -0.02, -0.01, 0.01]},

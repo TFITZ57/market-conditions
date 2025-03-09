@@ -14,7 +14,7 @@
 8. Pending Home Sales
 9. Median Sale Price
 10. Average Sale Price
-11. List Price to Sales Price Ratio
+11. LP/SP Ratio
 12. Home Price-to-Income Ratio
 13. Mortgage Rates
 14. Housing Affordability Index
