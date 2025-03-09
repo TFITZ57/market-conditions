@@ -1,0 +1,25 @@
+[theme]
+primaryColor = "#4682b4"  # Steel blue
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f8fa"
+textColor = "#262730"
+font = "sans-serif"
+
+[server]
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 50
+maxMessageSize = 100
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+# Enable memory profiling to optimize performance
+magicEnabled = true
+installTracer = false
+fixMatplotlib = true
+
+[logger]
+level = "info"
+messageFormat = "%(asctime)s %(levelname)s: %(message)s"

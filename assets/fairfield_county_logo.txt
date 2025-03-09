@@ -1,0 +1,3 @@
+Place your Fairfield County logo image here.
+Recommended size: 200x200 pixels.
+Rename this file to fairfield_county_logo.png after adding the image.
